@@ -28,7 +28,7 @@ class MqttFieldConfig:
     id_override: Optional[str] = None  # Used to override Home Assistant field id
 
 
-COMMAND_TOPIC_RE = re.compile(r'^bluetti/command/(\w+)-(\d+)/([a-z_]+)$')
+COMMAND_TOPIC_RE = re.compile(r'^bluetti/command/(.+?)-(\d+)/([a-z_]+)$')
 NORMAL_DEVICE_FIELDS = {
     'dc_input_power': MqttFieldConfig(
         type=MqttFieldType.NUMERIC,
