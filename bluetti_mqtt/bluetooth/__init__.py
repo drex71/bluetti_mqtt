@@ -3,7 +3,7 @@ import re
 from typing import Set
 from bleak import BleakScanner
 from bleak.backends.device import BLEDevice
-from bluetti_mqtt.core import BluettiDevice, V2Device, AC200M, AC300, AC500, AC60, EP500, EP500P, EP600, EB3A, Elite200
+from bluetti_mqtt.core import BluettiDevice, V2Device, AC200M, AC300, AC500, AC60, EP500, EP500P, EP600, EB3A
 from .client import BluetoothClient
 from .exc import BadConnectionError, ModbusError, ParseError
 from .manager import MultiDeviceManager
@@ -14,6 +14,8 @@ from bluetti_mqtt.bluetooth.encryption import is_device_using_encryption
 #     r'^(AC200M|AC200L|AC300|AC500|AC60|AC70|AC180|EP500P|EP500|EP600|EB3A|Elite ?200) V(\d+)$',
 #     re.IGNORECASE
 # )
+
+# New regex with spaces support
 DEVICE_NAME_RE = re.compile(
     r'^(AC200M|AC200L|AC300|AC500|AC60|AC70|AC180|EP500P|EP500|EP600|EB3A|Elite ?200)\s*V?(\d+)$',
     re.IGNORECASE
@@ -55,7 +57,6 @@ def build_device(address: str, name: str):
     if match[1].lower().replace(" ", "") == 'elite200':
         return V2Device(address, match[2], 'Elite 200')
     raise Exception(f"unable to find device type for {match[1]}")
-
 
 async def check_addresses(addresses: Set[str]):
     logging.debug(f'Checking we can connect: {addresses}')
