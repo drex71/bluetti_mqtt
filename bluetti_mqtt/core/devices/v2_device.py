@@ -25,7 +25,7 @@ class ProtocolAddress(Enum):
     TIME_CTRL_INFO = 5000
     PACK_MAIN_INFO = 6000
     PACK_ITEM_INFO = 6100
-    PACK_SUB_PACK_INFO = 6300 # PACK_CELLS_INFO_SPLIT_START
+    PACK_SUB_PACK_INFO = 6300  # PACK_CELLS_INFO_SPLIT_START
     PACK_SETTING = 7000       # PACK_CELLS_INFO_SPLIT_END
     PACK_BMU_INFO = 7200
     IOT_BASE_INFO = 11000
@@ -51,6 +51,7 @@ class ChargingMode(Enum):
     STANDARD = 0
     SILENT = 1
     TURBO = 2
+
 
 class V2Device(BluettiDevice):
     def __init__(self, address: str, sn: str, type: str):
@@ -219,10 +220,13 @@ class V2Device(BluettiDevice):
             # '': 'pack_status',
         }
 
+        # Writable control fields (for command sending)
+        self.struct.add_bool_field('ac_output_on', 3007)
+        self.struct.add_bool_field('dc_output_on', 3008)
+
         for field in self.struct.fields:
             if (new_name := mqtt_name_map.get(field.name)) is not None:
                 field.name = new_name
-
 
     @property
     def polling_commands(self) -> List[ReadHoldingRegisters]:
@@ -244,3 +248,7 @@ class V2Device(BluettiDevice):
             ReadHoldingRegisters(ProtocolAddress.INV_LOAD_INFO.value, 48),
             ReadHoldingRegisters(ProtocolAddress.PACK_MAIN_INFO.value, 31),
         ]
+
+    @property
+    def writable_ranges(self) -> List[range]:
+        return [range(3000, 3062)]
