@@ -220,6 +220,10 @@ class V2Device(BluettiDevice):
             # '': 'pack_status',
         }
 
+        # Writable control fields (for command sending)
+        self.struct.add_bool_field('ac_output_on', 3007)
+        self.struct.add_bool_field('dc_output_on', 3008)
+
         for field in self.struct.fields:
             if (new_name := mqtt_name_map.get(field.name)) is not None:
                 field.name = new_name
