@@ -16,6 +16,8 @@ class ProtocolAddress(Enum):
     INV_LOAD_INFO = 1400
     INV_INVERTER_INFO = 1500
     INV_BASE_SETTINGS_INFO = 2000
+    AC_SWITCH = 2011 # Writable, 1 = on, 0 = off
+    DC_SWITCH = 2012 # Writable, 1 = on, 0 = off
     INV_ADVANCED_SETTINGS_INFO = 2200
     CERT_SETTINGS_INFO = 2400
     MICRO_INV_ADV_SETTINGS = 2500
@@ -25,7 +27,7 @@ class ProtocolAddress(Enum):
     TIME_CTRL_INFO = 5000
     PACK_MAIN_INFO = 6000
     PACK_ITEM_INFO = 6100
-    PACK_SUB_PACK_INFO = 6300  # PACK_CELLS_INFO_SPLIT_START
+    PACK_SUB_PACK_INFO = 6300 # PACK_CELLS_INFO_SPLIT_START
     PACK_SETTING = 7000       # PACK_CELLS_INFO_SPLIT_END
     PACK_BMU_INFO = 7200
     IOT_BASE_INFO = 11000
@@ -45,6 +47,20 @@ class ProtocolAddress(Enum):
     NODE_INFO = 21000
     COMM_DATA_OTHER = 40000
 
+@unique
+class CtrlStatusMask(Enum):
+    POWER_ENABLE       = 1 << 0
+    AC_ENABLE          = 1 << 1
+    DC_ENABLE          = 1 << 2
+    INV_ENABLE         = 1 << 3
+    GRID_ENABLE        = 1 << 4
+    PV_ENABLE          = 1 << 5
+    FEEDBACK_ENABLE    = 1 << 6
+    METER_ENABLE       = 1 << 7
+    LED_ENABLE         = 1 << 8
+    ECO_ENABLE         = 1 << 9
+    SUPER_POWER_ENABLE = 1 << 10
+
 
 @unique
 class ChargingMode(Enum):
@@ -52,11 +68,15 @@ class ChargingMode(Enum):
     SILENT = 1
     TURBO = 2
 
-
 class V2Device(BluettiDevice):
     def __init__(self, address: str, sn: str, type: str):
         super().__init__(address, type, sn)
         self.struct = DeviceStruct(chunk_size=1)
+
+        ## Setters
+        # See ctrl_status to read the current value of these two (it's a bitfield)
+        self.struct.add_bool_field("ac_switch", ProtocolAddress.AC_SWITCH.value)
+        self.struct.add_bool_field("dc_switch", ProtocolAddress.DC_SWITCH.value)
 
         ## BaseConfig
         self.struct.add_uint8_field("cfg_specs", ProtocolAddress.BASE_CONFIG.value + 0)
@@ -100,17 +120,7 @@ class V2Device(BluettiDevice):
         # battery_to_ac_load = 1 << 13
         self.struct.add_uint_field("energy_lines", ProtocolAddress.HOME_DATA.value + 46)
 
-        # power_enable       = 1 << 0
-        # ac_enable          = 1 << 1
-        # dc_enable          = 1 << 2
-        # inv_enable         = 1 << 3
-        # grid_enable        = 1 << 4
-        # pv_enable          = 1 << 5
-        # feedback_enable    = 1 << 6
-        # meter_enable       = 1 << 7
-        # led_enable         = 1 << 8
-        # eco_enable         = 1 << 9
-        # super_power_enable = 1 << 10
+        # See CtrlStatusMask
         self.struct.add_uint_field("ctrl_status", ProtocolAddress.HOME_DATA.value + 48)
 
         self.struct.add_uint8_field("grid_parallel_soc", ProtocolAddress.HOME_DATA.value + 51)
@@ -178,6 +188,8 @@ class V2Device(BluettiDevice):
         self.struct.add_decimal_field("pack_max_dsg_current", ProtocolAddress.PACK_MAIN_INFO.value + 24, 1)
 
         mqtt_name_map = {
+            'ac_switch': 'ac_output_on',
+            'dc_switch': 'dc_output_on',
             'total_pv_power': 'dc_input_power',
             'total_grid_power': 'ac_input_power',
             'total_ac_power': 'ac_output_power',
@@ -220,13 +232,10 @@ class V2Device(BluettiDevice):
             # '': 'pack_status',
         }
 
-        # Writable control fields (for command sending)
-        self.struct.add_bool_field('ac_output_on', 3007)
-        self.struct.add_bool_field('dc_output_on', 3008)
-
         for field in self.struct.fields:
             if (new_name := mqtt_name_map.get(field.name)) is not None:
                 field.name = new_name
+
 
     @property
     def polling_commands(self) -> List[ReadHoldingRegisters]:
@@ -251,4 +260,16 @@ class V2Device(BluettiDevice):
 
     @property
     def writable_ranges(self) -> List[range]:
-        return [range(3000, 3062)]
+        switches = range(ProtocolAddress.AC_SWITCH.value, ProtocolAddress.DC_SWITCH.value + 1)
+        if len(switches) != 2:
+            raise RuntimeError("We only expect two values in this 'range'")
+        return [switches]
+
+    def parse(self, address: int, data: bytes) -> dict:
+        """Insert extra virtual fields, like bitfields that need to be unpacked
+        """
+        ret = self.struct.parse(address, data)
+        if ctrl_status := ret.get("ctrl_status"):
+            ret["ac_output_on"] = ctrl_status & CtrlStatusMask.AC_ENABLE.value
+            ret["dc_output_on"] = ctrl_status & CtrlStatusMask.DC_ENABLE.value
+        return ret
