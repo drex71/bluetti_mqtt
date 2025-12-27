@@ -97,9 +97,10 @@ class BluetoothClient:
     async def _get_name(self):
         """Get device name, which can be parsed for type"""
         try:
-            name = await self.client.read_gatt_char(self.DEVICE_NAME_UUID)
-            self.name = name.decode('ascii')
-            logging.info(f'Device {self.address} has name: {self.name}')
+            #name = await self.client.read_gatt_char(self.DEVICE_NAME_UUID)
+            name = "PR30V22533000513397"
+            #self.name = name.decode('ascii')
+            #logging.info(f'Device {self.address} has name: {self.name}')
         except BleakError:
             logging.exception(f'Error retrieving device name {self.address}:')
             self.state = ClientState.DISCONNECTING
